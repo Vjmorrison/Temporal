@@ -1,14 +1,10 @@
 #include "TemporalSocket.h"
 
-
 TemporalSocket::TemporalSocket(Temporal* pTemp)
 {
 	memset(LastExeceptionMsg, '\0', 1024);
 
-	for( int i=0; i<16; i++)
-	{
-		memset(AllConnClients[i], '\0', 32);
-	}
+	
 
 	CurrentSocket = -1;
 
@@ -108,7 +104,10 @@ char* TemporalSocket::ClientSend(char* Message)
 	memset(buffer, '\0', buffer_len);
 
 	strcpy(buffer, Message);
-	
+
+	//clean up the malloc
+	free(Message);
+
 	//Send the Message (The Soket, the message, the length of the message
 	bytecount=send(CurrentSocket, buffer, strlen(buffer),0);
 
@@ -279,9 +278,54 @@ DWORD WINAPI TemporalSocket::SocketHandler(VOID* lpParameter)
 	//sprintf(LastExeceptionMsg, "Received bytes %d\nReceived string \"%s\"\n", bytecount, buffer);
 
 	//React appropriately to the message and send a response back to confirm.
-	ParentTemporal->ServerProcessMessage(buffer);
+	ClientCommand NewCommand = (ClientCommand)ParentTemporal->ServerProcessMessage(buffer);
 	
-	bytecount = send(*csock, buffer, strlen(buffer), 0);
+	char* returnOptions = (char*)malloc(2048);
+	strcpy(returnOptions, ":");
+	if(NewCommand == UPDATEALLACTORS)
+	{
+		for(int i = 0; i<100; i++)
+		{
+			char* pClassName = (char*)malloc(16);
+			char* pLocX = (char*)malloc(16); 
+			char* pLocY = (char*)malloc(16);
+			char* pScale = (char*)malloc(16);
+			char* pTeam = (char*)malloc(16);
+
+			
+			sprintf(pClassName, "%d", ParentTemporal->AllActors[i]->ClassName);
+			strcat(returnOptions, pClassName);
+			strcat(returnOptions, ",");
+
+			sprintf(pClassName, "%d", ParentTemporal->AllActors[i]->LocX);
+			strcat(returnOptions, pLocX);
+			strcat(returnOptions, ",");
+
+			sprintf(pClassName, "%d", ParentTemporal->AllActors[i]->LocY);
+			strcat(returnOptions, pLocY);
+			strcat(returnOptions, ",");
+
+			sprintf(pClassName, "%d", ParentTemporal->AllActors[i]->Scale);
+			strcat(returnOptions, pScale);
+			strcat(returnOptions, ",");
+
+			sprintf(pClassName, "%d", ParentTemporal->AllActors[i]->CurrentTeam);
+			strcat(returnOptions, pTeam);
+
+			free(pClassName);
+			free(pLocX);
+			free(pLocY);
+			free(pScale);
+			free(pTeam);
+		}
+	}
+	char* returnMessage = (char*)malloc(2064);
+	sprintf(returnMessage,"%d%s", NewCommand, returnOptions);
+
+	bytecount = send(*csock, returnMessage, strlen(returnMessage), 0);
+
+	free(returnMessage);
+	free(returnOptions);
 
 	if(bytecount == SOCKET_ERROR)
 	{

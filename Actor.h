@@ -7,7 +7,7 @@
 #include <dwrite.h>
 #include <wincodec.h>
 #include <stdio.h>
-
+#include "StateEnums.h"
 
 enum ActorShape
 {
@@ -56,6 +56,9 @@ public:
 	float LocX;
 	float LocY;
 	float Scale;
+
+	SpawnClass ClassName;
+	Teams CurrentTeam;
 
 	void Draw(HWND m_hwnd, ID2D1HwndRenderTarget* pCanvas, ID2D1Factory* m_pDirect2dFactory);
 

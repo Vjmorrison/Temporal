@@ -47,11 +47,6 @@ HRESULT Temporal::Initialize()
 {
 	HRESULT hr;
 
-	for(int i = 0; i < 100; i++)
-	{
-		AllActors[i] = NULL;
-	}
-
 	initState(CurrentState);
 
     // Initialize device-indpendent resources, such
@@ -256,10 +251,10 @@ LRESULT CALLBACK Temporal::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARA
 					pTemporal->WindowWidth = width;
 					pTemporal->WindowHeight = height;
                     pTemporal->OnResize(width, height);
-					if( pTemporal->AllActors[0] != NULL)
+					if( pTemporal->AllActors.size > 0)
 					{
-						((Mouse*)pTemporal->AllActors[0])->MaxX = (float)width - 10;
-						((Mouse*)pTemporal->AllActors[0])->MaxY = (float)height - 10;
+						((Mouse)pTemporal->AllActors[0])->MaxX = (float)width - 10;
+						((Mouse)pTemporal->AllActors[0])->MaxY = (float)height - 10;
 					}
                 }
                 result = 0;
@@ -286,7 +281,6 @@ LRESULT CALLBACK Temporal::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARA
 
 			case WM_MOUSEMOVE:
 				{
-					ShowCursor(false);
 					if( pTemporal->AllActors[0] != NULL)
 					{
 						POINT MousePoint;
@@ -372,58 +366,55 @@ LRESULT CALLBACK Temporal::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARA
 
 int Temporal::Spawn(SpawnClass pClass, float pX, float pY, ActorScale pScale, Teams pTeam)
 {
-	for(int i = 0; i<100; i++)
+	switch (pClass)
 	{
-		if(AllActors[i] == NULL)
-		{
-			switch (pClass)
-			{
-			case CLASS_ACTOR:
-				AllActors[i] = new Actor();
-				break;
-			case CLASS_MOUSE:
-				AllActors[i] = new Mouse();
-				break;
-			case CLASS_TANK:
-				AllActors[i] = new Tank();
-				break;
-			case CLASS_GUITEXT:
-				AllActors[i] = new GUIText();
-				break;
-			default:
-				break;
-			}
-			
-			AllActors[i]->LocX = pX;
-			AllActors[i]->LocY = pY;
-			AllActors[i]->Scale = pScale;
-
-			switch (pTeam)
-			{
-			case TEAM1:
-				AllActors[i]->BorderColor = COLOR_ALLY;
-				AllActors[i]->FillColor = COLOR_ALLY;
-				break;
-
-			case TEAM2:
-				AllActors[i]->BorderColor = COLOR_ENEMY;
-				AllActors[i]->FillColor = COLOR_ENEMY;
-				break;
-
-			case NEUTRAL:
-				AllActors[i]->BorderColor = COLOR_NEUTRAL;
-				AllActors[i]->FillColor = COLOR_NEUTRAL;
-				break;
-
-			default:
-				AllActors[i]->BorderColor = COLOR_NEUTRAL;
-				AllActors[i]->FillColor = COLOR_NEUTRAL;
-				break;
-			}
-			return i;
-		}
+	case CLASS_ACTOR:
+		AllActors.push_back(new Actor());
+		break;
+	case CLASS_MOUSE:
+		AllActors.push_back(new Mouse());
+		break;
+	case CLASS_TANK:
+		AllActors[i] = new Tank();
+		break;
+	case CLASS_GUITEXT:
+		AllActors[i] = new GUIText();
+		break;
+	default:
+		break;
 	}
-	return -1;
+			
+	AllActors[i]->LocX = pX;
+	AllActors[i]->LocY = pY;
+	AllActors[i]->Scale = pScale;
+	AllActors[i]->ClassName = pClass;
+
+	switch (pTeam)
+	{
+	case TEAM1:
+		AllActors[i]->BorderColor = COLOR_ALLY;
+		AllActors[i]->FillColor = COLOR_ALLY;
+		break;
+
+	case TEAM2:
+		AllActors[i]->BorderColor = COLOR_ENEMY;
+		AllActors[i]->FillColor = COLOR_ENEMY;
+		break;
+
+	case NEUTRAL:
+		AllActors[i]->BorderColor = COLOR_NEUTRAL;
+		AllActors[i]->FillColor = COLOR_NEUTRAL;
+		break;
+
+	default:
+		AllActors[i]->BorderColor = COLOR_NEUTRAL;
+		AllActors[i]->FillColor = COLOR_NEUTRAL;
+		break;
+	}
+
+	AllActors[i]->CurrentTeam = pTeam;
+
+	return i;
 }
 
 
@@ -525,11 +516,68 @@ void Temporal::GoToState(StateEnum pState)
 
 void Temporal::ProcessMessage(char* pServerMessage)
 {
+	char* Token;
+	Token = strtok(pServerMessage, ":");
 
+	int CommandToken = (int) *Token;
+
+	switch (CommandToken)
+	{
+	case CONFIRMADD:
+		GoToState(STATE_GAME);
+		break;
+	case UPDATEALLACTORS:
+		break;
+	default:
+		break;
+	}
 }
 
-void Temporal::ServerProcessMessage(char* pClientMessage)
+ClientCommand Temporal::ServerProcessMessage(char* pClientMessage)
 {
+	char* Token;
+	Token = strtok(pClientMessage, ":");
+
+	int CommandToken = atoi(Token);
+
+	switch (CommandToken)
+	{
+	case INITCLIENT:
+		Token = strtok(NULL, ":");
+		RegisterNewClient(Token);
+		return CONFIRMADD;
+		break;
+
+	case ADDUNIT:
+		SpawnClass newClass;
+		float pX, pY;
+		ActorScale newScale;
+		Teams newTeam;
+
+		Token = strtok(NULL, ",");
+		newClass = (SpawnClass)*Token;
+
+		Token = strtok(NULL, ",");
+		pX = (float)*Token;
+
+		Token = strtok(NULL, ",");
+		pY = (float)*Token;
+
+		Token = strtok(NULL, ",");
+		newScale = (ActorScale)*Token;
+
+		Token = strtok(NULL, ",");
+		newTeam = (Teams)*Token;
+
+		Spawn(newClass, pX, pY, newScale, newTeam);
+		return UPDATEALLACTORS;
+		break;
+
+	default:
+		break;
+	}
+
+	free(Token);
 
 }
 
@@ -538,7 +586,22 @@ char* Temporal::SendClientInfo()
 	//If we have a Valid connection
 	if(ConnSocket->CurrentSocket != -1)
 	{
-		return ConnSocket->ClientSend("ClientName");
+		char* pMessage = (char*)malloc(1024);
+		memset(pMessage, '\0', 1024);
+		sprintf(pMessage,"%d:%s",INITCLIENT, "ClientName");
+
+		return ConnSocket->ClientSend(pMessage);
+	}
+}
+
+void Temporal::RegisterNewClient(char* ClientName)
+{
+	for(int i = 0; i < 16; i++)
+	{
+		if(ConnSocket->AllConnClients[i] == NULL)
+		{
+			strcpy(ConnSocket->AllConnClients[i], ClientName);
+		}
 	}
 }
 

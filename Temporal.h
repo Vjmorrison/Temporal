@@ -55,8 +55,12 @@ EXTERN_C IMAGE_DOS_HEADER __ImageBase;
 #endif
 
 #include "StateEnums.h"
-
 #include "ActorClasses.h"
+#include "TemporalSocket.h"
+#include <vector>
+
+class Temporal;
+class TemporalSocket;
 
 class Temporal
 {
@@ -65,7 +69,7 @@ public:
     ~Temporal();
 
 	/*All The actors in the given Level*/
-	Actor* AllActors[100];
+	vector<Actor> AllActors;
 
 	/*Flag for ready to render!*/
 	bool bReadyToRender;
@@ -81,6 +85,15 @@ public:
 
 	//the Socket Connection
 	TemporalSocket* ConnSocket;
+
+	//Process Message Sent from server to client
+	void ProcessMessage(char* pServerMessage);
+
+	//Process Message sent from client to server
+	ClientCommand ServerProcessMessage(char* pClientMessage);
+
+	//Registers a new client to the server
+	void RegisterNewClient(char* ClientName);
 
 private:
 
@@ -137,11 +150,7 @@ private:
 	//Send Server the clientName and download the current AllActors array
 	char* SendClientInfo();
 
-	//Process Message Sent from server to client
-	void ProcessMessage(char* pServerMessage);
-
-	//Process Message sent from client to server
-	void ServerProcessMessage(char* pClientMessage);
+	
 
 
 private:

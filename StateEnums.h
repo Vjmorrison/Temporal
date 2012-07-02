@@ -20,4 +20,16 @@ enum SpawnClass
 	CLASS_GUITEXT
 };
 
+enum ServerCommand
+{
+	INITCLIENT,
+	ADDUNIT
+};
+
+enum ClientCommand
+{
+	CONFIRMADD,
+	UPDATEALLACTORS
+};
+
 #endif

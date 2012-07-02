@@ -7,9 +7,11 @@
 
 #include <stdio.h>
 
+#pragma comment(lib, "ws2_32.lib")
+
 #include "Temporal.h"
 
-#pragma comment(lib, "ws2_32.lib")
+class Temporal;
 
 class TemporalSocket
 {
@@ -20,8 +22,8 @@ public:
 	//The last Exception message sent by the connection
 	char LastExeceptionMsg[200];
 
-	//All the currently Connected clients (up to 16 clients with names up to 32 characters ling
-	char* AllConnClients[16][32];
+	//All the currently Connected clients (up to 16 clients)
+	char* AllConnClients[16];
 
 	//The currently Connected Socket
 	int CurrentSocket;
