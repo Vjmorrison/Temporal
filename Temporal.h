@@ -20,8 +20,10 @@
 #include <dwrite.h>
 #include <wincodec.h>
 #include <math.h>
+#include <time.h>
 
 using namespace std;
+
 
 template<class Interface>
 inline void SafeRelease(
@@ -52,9 +54,9 @@ EXTERN_C IMAGE_DOS_HEADER __ImageBase;
 #define HINST_THISCOMPONENT ((HINSTANCE)&__ImageBase)
 #endif
 
-#include "Actor.h"
-#include "Mouse.h"
-#include "TemporalSocket.h"
+#include "StateEnums.h"
+
+#include "ActorClasses.h"
 
 class Temporal
 {
@@ -74,7 +76,11 @@ public:
     // Process and dispatch messages
     void RunMessageLoop();
 
-	bool Spawn(float pX, float pY, ActorScale pScale, Teams pTeam);
+	//Spawn Actors
+	int Spawn(SpawnClass pClass, float pX, float pY, ActorScale pScale, Teams pTeam);
+
+	//the Socket Connection
+	TemporalSocket* ConnSocket;
 
 private:
 
@@ -91,18 +97,52 @@ private:
     HRESULT OnRender();
 
     // Resize the render target.
-    void OnResize(
-        UINT width,
-        UINT height
-        );
+    void OnResize(UINT width, UINT height);
 
     // The windows procedure.
-    static LRESULT CALLBACK WndProc(
-        HWND hWnd,
-        UINT message,
-        WPARAM wParam,
-        LPARAM lParam
-        );
+    static LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+
+	bool DrawMenu();
+	
+	bool DrawGame(double* DT);
+
+	bool DrawWin();
+
+	bool DrawLose();
+
+	bool DrawWaiting(char* Message);
+
+	bool DrawServerScreen();
+
+	StateEnum CurrentState;
+
+	double DeltaTime();
+
+	clock_t LastTime;
+
+	void initState(StateEnum pState);
+
+	//Safely delete an actor from AllActors
+	void DeleteActor(int index);
+
+	//Inits the mouse Actor object in AllObjects[0]
+	void InitMouse();
+
+	//The current WIndow Lengths and heights
+	UINT WindowWidth, WindowHeight;
+
+	//Tell current Temporal Class to change states
+	void GoToState(StateEnum pState);
+
+	//Send Server the clientName and download the current AllActors array
+	char* SendClientInfo();
+
+	//Process Message Sent from server to client
+	void ProcessMessage(char* pServerMessage);
+
+	//Process Message sent from client to server
+	void ServerProcessMessage(char* pClientMessage);
+
 
 private:
 	HWND m_hwnd;

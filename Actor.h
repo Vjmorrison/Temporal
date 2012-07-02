@@ -6,6 +6,7 @@
 #include <d2d1helper.h>
 #include <dwrite.h>
 #include <wincodec.h>
+#include <stdio.h>
 
 
 enum ActorShape
@@ -26,7 +27,8 @@ enum ActorColor
 enum ActorScale
 {
 	SCALE_TANK = 20,
-	SCALE_MOUSE = 10
+	SCALE_MOUSE = 10,
+	SCALE_TEXT = 0
 };
 
 enum Teams
@@ -42,6 +44,8 @@ class Actor
 public:
     Actor();
 
+	Actor* AttachedActors[50];
+
 	ActorShape DrawShape;
 	ActorColor FillColor;
 	ActorColor BorderColor;
@@ -53,10 +57,14 @@ public:
 	float LocY;
 	float Scale;
 
-	void Draw(ID2D1HwndRenderTarget* pCanvas, ID2D1Factory* m_pDirect2dFactory);
+	void Draw(HWND m_hwnd, ID2D1HwndRenderTarget* pCanvas, ID2D1Factory* m_pDirect2dFactory);
 
 	void SetBorderColor(ActorColor pColor, ID2D1HwndRenderTarget* pCanvas);
 	void SetFillColor(ActorColor pColor, ID2D1HwndRenderTarget* pCanvas);
+
+	void Tick(double* DT);
+
+	void PaintText(HWND m_hwnd, char* Message, float X, float Y);
 };
 
 #endif

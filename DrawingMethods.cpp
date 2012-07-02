@@ -13,6 +13,9 @@ HRESULT Temporal::OnRender()
 
 	if (SUCCEEDED(hr))
     {
+		//Get the DeltaTime Since the last Loop.
+		double DT = DeltaTime();
+
 		m_pRenderTarget->BeginDraw();
 
         m_pRenderTarget->SetTransform(D2D1::Matrix3x2F::Identity());
@@ -21,25 +24,39 @@ HRESULT Temporal::OnRender()
 
 		if(bReadyToRender)
 		{
-			for( int i = 0; i < 100; i++)
+			//State Switch
+			switch (CurrentState)
 			{
-				if(AllActors[i] != NULL)
-				{
-					if((Mouse *) AllActors[i] != NULL)
-					{
-						((Mouse *)AllActors[i])->Draw(m_pRenderTarget, m_pDirect2dFactory);
-					}
-					else
-					{
-						AllActors[i]->Draw(m_pRenderTarget, m_pDirect2dFactory);
-					}
-				}
+			case STATE_MAINMENU:
+				DrawMenu();
+				break;
+			case STATE_GAME:
+				DrawGame(&DT);
+				break;
+			case STATE_WIN:
+				DrawWin();
+				break;
+			case STATE_LOSE:
+				DrawLose();
+				break;
+			case STATE_SERVERWAIT:
+				DrawWaiting("Waiting For Connections");
+				break;
+			case STATE_SERVERCONNECTED:
+				DrawServerScreen();
+				break;
+			case STATE_CONNECTING:
+				DrawWaiting("Connecting");
+				break;
+			default:
+				DrawWaiting("Default");
+				break;
 			}
+
+			
 		}
 
-		
 		hr = m_pRenderTarget->EndDraw();
-
 		/*
 		RECT rect;
 		HDC hdc = GetDC(m_hwnd);  
@@ -79,3 +96,100 @@ void Temporal::OnResize(UINT width, UINT height)
         m_pRenderTarget->Resize(D2D1::SizeU(width, height));
     }
 }
+
+//Drawing the main menu
+bool Temporal::DrawMenu()
+{
+	for( int i = 0; i < 100; i++)
+	{
+		if(AllActors[i] != NULL)
+		{
+			if(i==0)
+			{
+				((Mouse *)AllActors[i])->Draw(m_hwnd, m_pRenderTarget, m_pDirect2dFactory);
+			}
+			else
+			{
+				m_pRenderTarget->EndDraw();
+				((GUIText*)AllActors[i])->Draw(m_hwnd, m_pRenderTarget, m_pDirect2dFactory);
+			}
+		}
+	}
+	return true;
+}
+
+//Drawing the main game
+bool Temporal::DrawGame(double* DT)
+{
+	//Draw All objects in the ALLActors Cue
+	for( int i = 0; i < 100; i++)
+	{
+		if(AllActors[i] != NULL)
+		{
+			if((Mouse *) AllActors[i] != NULL)
+			{
+				((Mouse *)AllActors[i])->Draw(m_hwnd, m_pRenderTarget, m_pDirect2dFactory);
+			}
+			else
+			{
+				AllActors[i]->Draw(m_hwnd, m_pRenderTarget, m_pDirect2dFactory);
+				AllActors[i]->Tick(DT);
+			}
+		}
+	}
+
+	return true;
+}
+
+bool Temporal::DrawWin()
+{
+	return true;
+}
+
+bool Temporal::DrawLose()
+{
+	return true;
+}
+
+bool Temporal::DrawWaiting(char* Message)
+{
+
+	for( int i = 0; i < 100; i++)
+	{
+		if(AllActors[i] != NULL)
+		{
+			if(i==0)
+			{
+				((Mouse *)AllActors[i])->Draw(m_hwnd, m_pRenderTarget, m_pDirect2dFactory);
+			}
+			else
+			{
+				m_pRenderTarget->EndDraw();
+				((GUIText*)AllActors[i])->SetMessage(Message);
+				((GUIText*)AllActors[i])->Draw(m_hwnd, m_pRenderTarget, m_pDirect2dFactory);
+			}
+		}
+	}
+	return true;
+}
+
+bool Temporal::DrawServerScreen()
+{
+	for( int i = 0; i < 100; i++)
+	{
+		if(AllActors[i] != NULL)
+		{
+			if(i==0)
+			{
+				((Mouse *)AllActors[i])->Draw(m_hwnd, m_pRenderTarget, m_pDirect2dFactory);
+			}
+			else
+			{
+				m_pRenderTarget->EndDraw();
+				((GUIText*)AllActors[i])->Draw(m_hwnd, m_pRenderTarget, m_pDirect2dFactory);
+			}
+		}
+	}
+	return true;
+}
+

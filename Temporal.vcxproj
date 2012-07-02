@@ -66,15 +66,21 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Actor.h" />
+    <ClInclude Include="ActorClasses.h" />
+    <ClInclude Include="GUIText.h" />
     <ClInclude Include="Mouse.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="StateEnums.h" />
+    <ClInclude Include="Tank.h" />
     <ClInclude Include="Temporal.h" />
     <ClInclude Include="TemporalSocket.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Actor.cpp" />
     <ClCompile Include="DrawingMethods.cpp" />
+    <ClCompile Include="GUIText.cpp" />
     <ClCompile Include="Mouse.cpp" />
+    <ClCompile Include="Tank.cpp" />
     <ClCompile Include="Temporal.cpp" />
     <ClCompile Include="TemporalSocket.cpp" />
   </ItemGroup>

@@ -1,9 +1,18 @@
 #include "TemporalSocket.h"
 
 
-TemporalSocket::TemporalSocket(void)
+TemporalSocket::TemporalSocket(Temporal* pTemp)
 {
 	memset(LastExeceptionMsg, '\0', 1024);
+
+	for( int i=0; i<16; i++)
+	{
+		memset(AllConnClients[i], '\0', 32);
+	}
+
+	CurrentSocket = -1;
+
+	ParentTemporal = pTemp;
 }
 
 
@@ -12,7 +21,7 @@ TemporalSocket::~TemporalSocket(void)
 }
 
 //Connect to the server as a client
-bool TemporalSocket::ServerConnect(char* IPAddress,  int HostPort)
+bool TemporalSocket::ClientConnect(char* IPAddress,  int HostPort)
 {
 	/*
 	//The port and address you want to connect to
@@ -76,8 +85,15 @@ bool TemporalSocket::ServerConnect(char* IPAddress,  int HostPort)
 		return false;
 	}
 
-	//Now lets do the client related stuff
-	
+	CurrentSocket = hsock;
+
+	return true;
+}
+
+
+//Send message to Server from client
+char* TemporalSocket::ClientSend(char* Message)
+{
 	//The Message that needs to be sent
 	char buffer[1024];
 
@@ -90,21 +106,11 @@ bool TemporalSocket::ServerConnect(char* IPAddress,  int HostPort)
 	
 	//Set aside a 1024 block of char's as NULL/Blanks
 	memset(buffer, '\0', buffer_len);
-	
-	//For each Char in the buffer get a character 'c' from the user. As long as it isnt a return '13' assign the char and keep going.
-	/*for(char* p=buffer ; (c=getch())!=13 ; p++)
-	{
-		//printf("%c", c);
-		*p = c;
-	}*/
 
-
-	//NYI
-	//Set Buffer Data
-
+	strcpy(buffer, Message);
 	
 	//Send the Message (The Soket, the message, the length of the message
-	bytecount=send(hsock, buffer, strlen(buffer),0);
+	bytecount=send(CurrentSocket, buffer, strlen(buffer),0);
 
 	if( bytecount == SOCKET_ERROR)
 	{
@@ -114,18 +120,31 @@ bool TemporalSocket::ServerConnect(char* IPAddress,  int HostPort)
 	sprintf(LastExeceptionMsg, "Sent bytes %d\n", bytecount);
 	
 	//Wait for recieved signal
-	bytecount = recv(hsock, buffer, buffer_len, 0);
+	bytecount = recv(CurrentSocket, buffer, buffer_len, 0);
 
 	if(bytecount == SOCKET_ERROR)
 	{
 		sprintf(LastExeceptionMsg, "Error receiving data %d\n", WSAGetLastError());
 		return false;
 	}
-	//printf("Recieved bytes %d\nReceived string \"%s\"\n", bytecount, buffer);
-	
-	closesocket(hsock);
 
-	return true;
+	char* ReturnMessage = (char*)malloc(strlen(buffer)+1);
+	memset(ReturnMessage, '\0', strlen(buffer)+1);
+	strcpy(ReturnMessage, buffer);
+
+	return ReturnMessage;
+
+}
+
+//Close the connection to the server
+bool TemporalSocket::ClientDisconnect(int hsock)
+{
+	if(hsock != -1)
+	{
+		closesocket(hsock);
+		return true;
+	}
+	return false;
 }
 
 //Create a server Host
@@ -204,30 +223,12 @@ bool TemporalSocket::ServerHost(int HostPort)
 
 	//Now lets to the server stuff
 	
-	int* csock;
-	sockaddr_in sadr;
-	int    addr_size = sizeof(SOCKADDR);
+	
 	 
-	//While we are waiting for a connection
-	while(true)
-	{
-		sprintf(LastExeceptionMsg, "waiting for a connection\n");
-		csock = (int*)malloc(sizeof(int));
-	  
-		*csock = accept( hsock, (SOCKADDR*)&sadr, &addr_size);
+	//The Server is now active and waiting for a connection.  
+	sprintf(LastExeceptionMsg, "waiting for a connection\n");
 
-		if(*csock != INVALID_SOCKET )
-		{
-			sprintf(LastExeceptionMsg,"Received connection from %s",inet_ntoa(sadr.sin_addr));
-
-			CreateThread(NULL,0, startMethodInThread, (VOID*)csock , 0,0);
-		}
-		else
-		{
-			sprintf(LastExeceptionMsg, "Error accepting %d\n",WSAGetLastError());
-			return false;
-		}
-	}
+	CreateThread(NULL,0, startServerInThread, (VOID*)hsock , 0,0);
 
 	return true;
 }
@@ -241,6 +242,16 @@ DWORD __stdcall startMethodInThread( LPVOID arg )
        return 1;
 }
 
+DWORD __stdcall startServerInThread( LPVOID arg )
+{
+       if(!arg)
+            return 0;
+	   TemporalSocket *yc_ptr = (TemporalSocket*)arg;
+       yc_ptr->AcceptHandler(arg);
+       return 1;
+}
+
+//What do do when a connection is recieved and data is present.
 DWORD WINAPI TemporalSocket::SocketHandler(VOID* lpParameter)
 {
 	int *csock = (int*)lpParameter;
@@ -248,11 +259,14 @@ DWORD WINAPI TemporalSocket::SocketHandler(VOID* lpParameter)
 	char buffer[1024];
 	int buffer_len = 1024;
 	int bytecount;
-	
+
+	//Clear the buffer
 	memset(buffer, 0, buffer_len);
 
+	//Read the data
 	bytecount = recv(*csock, buffer, buffer_len, 0);
 
+	//If Failed to read
 	if(bytecount == SOCKET_ERROR)
 	{
 		sprintf(LastExeceptionMsg, "Error receiving data %d\n", WSAGetLastError());
@@ -260,9 +274,12 @@ DWORD WINAPI TemporalSocket::SocketHandler(VOID* lpParameter)
 		free(csock);
 		return 0;
 	}
+	
+	//Correctly read message
+	//sprintf(LastExeceptionMsg, "Received bytes %d\nReceived string \"%s\"\n", bytecount, buffer);
 
-	sprintf(LastExeceptionMsg, "Received bytes %d\nReceived string \"%s\"\n", bytecount, buffer);
-	strcat(buffer, " SERVER ECHO");
+	//React appropriately to the message and send a response back to confirm.
+	ParentTemporal->ServerProcessMessage(buffer);
 	
 	bytecount = send(*csock, buffer, strlen(buffer), 0);
 
@@ -274,8 +291,36 @@ DWORD WINAPI TemporalSocket::SocketHandler(VOID* lpParameter)
 		return 0;
 	}
 	   
-	sprintf(LastExeceptionMsg, "Sent bytes %d\n", bytecount);
+	//sprintf(LastExeceptionMsg, "Sent bytes %d\n", bytecount);
 	
+	//cleanup
 	free(csock);
 	return 0;
+}
+
+DWORD WINAPI TemporalSocket::AcceptHandler(VOID* lpParameter)
+{
+	int hsock = (int)lpParameter;
+
+	int* csock;
+	sockaddr_in sadr;
+	int    addr_size = sizeof(SOCKADDR);
+
+	while(true)
+	{
+		csock = (int*)malloc(sizeof(int));
+	  
+		*csock = accept( hsock, (SOCKADDR*)&sadr, &addr_size);
+
+		if(*csock != INVALID_SOCKET )
+		{
+			//sprintf(LastExeceptionMsg,"Received connection from %s",inet_ntoa(sadr.sin_addr));
+
+			CreateThread(NULL,0, startMethodInThread, (VOID*)csock , 0,0);
+		}
+		else
+		{
+			//sprintf(LastExeceptionMsg, "Error accepting %d\n",WSAGetLastError());
+		}
+	}
 }

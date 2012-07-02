@@ -9,6 +9,13 @@ Temporal::Temporal() :
     m_pCornflowerBlueBrush(NULL)
 {
 	bReadyToRender = false;
+	CurrentState = STATE_MAINMENU;
+	LastTime = clock();
+
+	WindowWidth = 0;
+	WindowHeight = 0;
+
+	ConnSocket = new TemporalSocket(this);
 }
 
 ///Destructor
@@ -45,7 +52,7 @@ HRESULT Temporal::Initialize()
 		AllActors[i] = NULL;
 	}
 
-	AllActors[0] = new Mouse();
+	initState(CurrentState);
 
     // Initialize device-indpendent resources, such
     // as the Direct2D factory.
@@ -246,6 +253,8 @@ LRESULT CALLBACK Temporal::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARA
                 {
                     UINT width = LOWORD(lParam);
                     UINT height = HIWORD(lParam);
+					pTemporal->WindowWidth = width;
+					pTemporal->WindowHeight = height;
                     pTemporal->OnResize(width, height);
 					if( pTemporal->AllActors[0] != NULL)
 					{
@@ -288,7 +297,14 @@ LRESULT CALLBACK Temporal::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARA
 
 						((Mouse*)pTemporal->AllActors[0])->LocX = MousePoint.x;
 						((Mouse*)pTemporal->AllActors[0])->LocY = MousePoint.y;
-						((Mouse*)pTemporal->AllActors[0])->FitBounds();
+						if(((Mouse*)pTemporal->AllActors[0])->FitBounds())
+						{
+							ShowCursor(true);
+						}
+						else
+						{
+							ShowCursor(false);
+						}
 					}
 				}
 				result = 0;
@@ -301,15 +317,35 @@ LRESULT CALLBACK Temporal::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARA
 
 			//Register Clicks
 			case WM_LBUTTONDOWN:
-				NewX = pTemporal->AllActors[0]->LocX;
-				NewY = pTemporal->AllActors[0]->LocY;
-				pTemporal->Spawn(NewX, NewY, SCALE_TANK, TEAM1);
+				if(pTemporal->CurrentState == STATE_GAME)
+				{
+					NewX = pTemporal->AllActors[0]->LocX;
+					NewY = pTemporal->AllActors[0]->LocY;
+					pTemporal->Spawn(CLASS_TANK, NewX, NewY, SCALE_TANK, TEAM1);
+				}
+				
+				if(pTemporal->CurrentState == STATE_MAINMENU)
+				{
+					pTemporal->GoToState(STATE_CONNECTING);
+					pTemporal->ConnSocket->ClientConnect("127.0.0.1", 12345);
+					char* ReturnMessage = pTemporal->SendClientInfo();
+					pTemporal->ProcessMessage(ReturnMessage);
+					free(ReturnMessage);
+				}
 					break;
 
 			case WM_RBUTTONDOWN:
-				NewX = pTemporal->AllActors[0]->LocX;
-				NewY = pTemporal->AllActors[0]->LocY;
-				pTemporal->Spawn(NewX, NewY, SCALE_TANK, TEAM2);
+				if(pTemporal->CurrentState == STATE_GAME)
+				{
+					NewX = pTemporal->AllActors[0]->LocX;
+					NewY = pTemporal->AllActors[0]->LocY;
+					pTemporal->Spawn(CLASS_TANK, NewX, NewY, SCALE_TANK, TEAM2);
+				}
+				if(pTemporal->CurrentState == STATE_MAINMENU)
+				{
+					pTemporal->GoToState(STATE_SERVERWAIT);
+					pTemporal->ConnSocket->ServerHost(12345);
+				}
 					break;
 
 			case WM_MBUTTONDOWN:
@@ -334,13 +370,30 @@ LRESULT CALLBACK Temporal::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARA
     return result;
 }
 
-bool Temporal::Spawn(float pX, float pY, ActorScale pScale, Teams pTeam)
+int Temporal::Spawn(SpawnClass pClass, float pX, float pY, ActorScale pScale, Teams pTeam)
 {
 	for(int i = 0; i<100; i++)
 	{
 		if(AllActors[i] == NULL)
 		{
-			AllActors[i] = new Actor();
+			switch (pClass)
+			{
+			case CLASS_ACTOR:
+				AllActors[i] = new Actor();
+				break;
+			case CLASS_MOUSE:
+				AllActors[i] = new Mouse();
+				break;
+			case CLASS_TANK:
+				AllActors[i] = new Tank();
+				break;
+			case CLASS_GUITEXT:
+				AllActors[i] = new GUIText();
+				break;
+			default:
+				break;
+			}
+			
 			AllActors[i]->LocX = pX;
 			AllActors[i]->LocY = pY;
 			AllActors[i]->Scale = pScale;
@@ -367,9 +420,126 @@ bool Temporal::Spawn(float pX, float pY, ActorScale pScale, Teams pTeam)
 				AllActors[i]->FillColor = COLOR_NEUTRAL;
 				break;
 			}
-			return true;
+			return i;
 		}
 	}
-	return false;
+	return -1;
 }
+
+
+double Temporal::DeltaTime()
+{
+	//Get the currentClockTime
+	clock_t CurrentTime = clock();
+	
+	//Get the DeltaTime since last Call
+	double returnDTime = (CurrentTime - LastTime)/CLOCKS_PER_SEC;
+
+	LastTime = CurrentTime;
+
+	//return the deltaTime
+	return returnDTime;
+}
+
+//Deletes the actor at the given index
+void Temporal::DeleteActor(int index)
+{
+	free(AllActors[index]);
+	AllActors[index] = NULL;
+}
+
+void Temporal::InitMouse()
+{
+	AllActors[0] = new Mouse();
+}
+
+
+void Temporal::initState(StateEnum pState)
+{
+	//Clear all Actors
+	for(int i=0; i<100; i++)
+	{
+		DeleteActor(i);
+	}
+	
+	InitMouse();
+
+	int SpawnIndex = -1;
+
+	switch (pState)
+	{
+	case STATE_MAINMENU:
+		SpawnIndex = Spawn(CLASS_GUITEXT, 200.0f,300.0f, SCALE_TEXT, NEUTRAL);
+		if(SpawnIndex != -1)
+		{
+			char NewTitle[100] = "Temporal!\n LeftClick to join server, RightClick to Host\0";
+
+			((GUIText*)AllActors[SpawnIndex])->SetMessage(NewTitle);
+		}
+		break;
+	case STATE_GAME:
+		break;
+	case STATE_WIN:
+		break;
+	case STATE_LOSE:
+		break;
+	case STATE_SERVERWAIT:
+		SpawnIndex = Spawn(CLASS_GUITEXT, 200.0f,300.0f, SCALE_TEXT, NEUTRAL);
+		if(SpawnIndex != -1)
+		{
+			char NewTitle[100] = "Waiting for Clients.....\0";
+
+			((GUIText*)AllActors[SpawnIndex])->SetMessage(NewTitle);
+		}
+		break;
+		break;
+	case STATE_SERVERCONNECTED:
+		SpawnIndex = Spawn(CLASS_GUITEXT, 200.0f,300.0f, SCALE_TEXT, NEUTRAL);
+		if(SpawnIndex != -1)
+		{
+			char NewTitle[100] = "Hosting Server!\0";
+
+			((GUIText*)AllActors[SpawnIndex])->SetMessage(NewTitle);
+		}
+		break;
+	case STATE_CONNECTING:
+		SpawnIndex = Spawn(CLASS_GUITEXT, 200.0f,300.0f, SCALE_TEXT, NEUTRAL);
+		if(SpawnIndex != -1)
+		{
+			char NewTitle[100] = "Connecting!.........\0";
+
+			((GUIText*)AllActors[SpawnIndex])->SetMessage(NewTitle);
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+void Temporal::GoToState(StateEnum pState)
+{
+	CurrentState = pState;
+
+	initState(pState);
+}
+
+void Temporal::ProcessMessage(char* pServerMessage)
+{
+
+}
+
+void Temporal::ServerProcessMessage(char* pClientMessage)
+{
+
+}
+
+char* Temporal::SendClientInfo()
+{
+	//If we have a Valid connection
+	if(ConnSocket->CurrentSocket != -1)
+	{
+		return ConnSocket->ClientSend("ClientName");
+	}
+}
+
 
